@@ -1,0 +1,34 @@
+2. No seu computador de casa (Preparação)
+Instalar o Node.js:
+
+Acesse nodejs.org e baixe a versão LTS.
+
+Execute o instalador e avance até o final ("Next, Next... Finish").
+
+Baixar o sistema:
+
+Abra o Google Drive, baixe o arquivo .zip da sua pasta.
+
+Extraia a pasta sistema-os para o local de sua preferência (ex: dentro de Documentos ou direto no C:\sistema-os).
+
+3. Reativar o motor no seu PC (Apenas uma vez)
+Abra a pasta sistema-os recém-extraída.
+
+Na barra de endereço da pasta (onde fica o caminho, ex: C:\Users\SeuNome\Documents\sistema-os), clique no espaço em branco, digite cmd e aperte Enter.
+
+Uma tela preta abrirá já apontando para a sua pasta. Digite exatamente este comando e aperte Enter:
+
+Bash
+npm install
+O Node.js lerá o seu arquivo package.json e baixará automaticamente todas as ferramentas necessárias (express, sqlite3, cors, multer, archiver) configuradas especificamente para o Windows da sua máquina. O processo leva cerca de 30 a 60 segundos.
+
+4. Criar o atalho de 1 clique
+Dentro da pasta sistema-os, localize o arquivo iniciar.bat.
+
+Clique com o botão direito nele > Mostrar mais opções > Enviar para > Área de trabalho (criar atalho).
+
+Renomeie o atalho na sua Área de Trabalho para "Gestor de OS".
+
+A partir daqui, basta dar duplo clique no atalho para abrir o navegador diretamente em http://localhost:3000 com todos os seus dados preservados.
+
+Ficou claro o processo de recriar as dependências com o comando npm install no seu computador pessoal?

@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Ordens de Serviço</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f6f9; }
+        .nav-pills .nav-link.active { background-color: #0d6efd; }
+        .card { border-radius: 10px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .thumb-preview { width: 100%; height: 160px; object-fit: cover; border-radius: 8px; }
+        .btn-whatsapp { color: #198754; border-color: #198754; }
+        .btn-whatsapp:hover { background-color: #198754; color: #fff; }
+        .card-filtro { cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .card-filtro:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .card-filtro.ativo { outline: 3px solid #000; }
+        .codigo-os { font-family: monospace; font-size: 0.95rem; font-weight: 700; color: #0d6efd; }
+    </style>
+</head>
+<body class="p-3 p-md-4">
+    <div class="container">
+        <!-- Cabeçalho -->
+        <header class="d-flex flex-wrap justify-content-between align-items-center pb-3 mb-4 border-bottom">
+            <h3 class="d-flex align-items-center text-dark text-decoration-none m-0">
+                <i class="bi bi-tools text-primary me-2"></i> Sistema de OS
+            </h3>
+            <div class="d-flex align-items-center gap-3">
+                <ul class="nav nav-pills" id="nav-tabs">
+                    <li class="nav-item"><button class="nav-link active" onclick="mostrarAba('dashboard')"><i class="bi bi-speedometer2"></i> Painel</button></li>
+                    <li class="nav-item"><button class="nav-link" onclick="mostrarAba('nova-os')"><i class="bi bi-file-earmark-plus"></i> Nova OS</button></li>
+                    <li class="nav-item"><button class="nav-link" onclick="mostrarAba('clientes')"><i class="bi bi-people"></i> Clientes</button></li>
+                    <li class="nav-item"><button class="nav-link" onclick="mostrarAba('catalogo')"><i class="bi bi-tags"></i> Catálogo</button></li>
+                    <li class="nav-item"><button class="nav-link" onclick="mostrarAba('estoque')"><i class="bi bi-box-seam"></i> Estoque</button></li>
+                </ul>
+                <a href="/api/backup" class="btn btn-outline-success btn-sm" title="Descarregar cópia de segurança completa">
+                    <i class="bi bi-cloud-arrow-down-fill me-1"></i> Fazer Backup (.zip)
+                </a>
+            </div>
+        </header>
+
+        <!-- ABA 1: PAINEL / DASHBOARD -->
+        <section id="aba-dashboard">
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div id="card-visao-todas" class="card p-3 bg-primary text-white card-filtro" onclick="mudarVisaoPainel('todas')">
+                        <small>Total de OS (Clique para filtrar)</small>
+                        <h2 id="total-os" class="m-0">0</h2>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div id="card-visao-abertas" class="card p-3 bg-warning text-dark card-filtro ativo" onclick="mudarVisaoPainel('abertas')">
+                        <small>Em Aberto / Execução (Clique para filtrar)</small>
+                        <h2 id="total-abertas" class="m-0">0</h2>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div id="card-visao-concluidas" class="card p-3 bg-success text-white card-filtro" onclick="mudarVisaoPainel('concluidas')">
+                        <small>Concluídas (Clique para filtrar)</small>
+                        <h2 id="total-concluidas" class="m-0">0</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <h5 class="m-0" id="titulo-tabela-os">Ordens em Aberto / Em Execução</h5>
+                    <span class="badge bg-secondary" id="badge-contador-visivel">0 OS exibidas</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nº da OS</th>
+                                <th>Cliente</th>
+                                <th>Dispositivo</th>
+                                <th>Defeito Relatado</th>
+                                <th>Entrada</th>
+                                <th>Previsão</th>
+                                <th>Status</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-os">
+                            <tr><td colspan="8" class="text-center text-muted">Carregando ordens...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 2: NOVA OS -->
+        <section id="aba-nova-os" style="display: none;">
+            <div class="card p-4">
+                <h5 class="mb-3">Abrir Nova Ordem de Serviço</h5>
+
+                <div id="alerta-garantia" class="alert alert-warning d-none mb-3" role="alert">
+                    <i class="bi bi-shield-exclamation me-1"></i>
+                    <strong>Atenção à Garantia Ativa:</strong>
+                    <ul id="lista-garantias" class="m-0 mt-1 ps-3 small"></ul>
+                </div>
+
+                <form id="form-nova-os" onsubmit="salvarOS(event)">
+                    <!-- Linha 1: Cliente e Datas -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Cliente *</label>
+                            <select id="os-cliente" class="form-select" onchange="verificarGarantiaCliente(this.value)" required>
+                                <option value="">Selecione um cliente...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Data de Entrada *</label>
+                            <input type="date" id="os-data-entrada" class="form-control" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Previsão de Entrega</label>
+                            <input type="date" id="os-previsao" class="form-control">
+                        </div>
+                    </div>
+
+                    <!-- Linha 2: Dispositivo -->
+                    <div class="card bg-light p-3 mb-3 border">
+                        <h6 class="text-primary mb-3"><i class="bi bi-laptop me-1"></i> Identificação do Dispositivo / Equipamento</h6>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Tipo de Dispositivo *</label>
+                                <select id="os-disp-tipo" class="form-select form-select-sm" onchange="tratarOutroTipoDispositivo(this.value, 'os-disp-outro')" required>
+                                    <option value="Desktop">Desktop (PC)</option>
+                                    <option value="Notebook">Notebook</option>
+                                    <option value="Celular">Celular / Smartphone</option>
+                                    <option value="Tablet">Tablet</option>
+                                    <option value="Console">Console (Videogame)</option>
+                                    <option value="Outros">Outros...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-none" id="container-os-disp-outro">
+                                <label class="form-label small fw-bold">Especifique o Tipo *</label>
+                                <input type="text" id="os-disp-outro" class="form-control form-control-sm" placeholder="Ex: Impressora, Monitor">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Marca e Modelo</label>
+                                <input type="text" id="os-disp-modelo" class="form-control form-control-sm" placeholder="Ex: Dell Inspiron 15 3000">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Nº de Série / IMEI / Serial</label>
+                                <input type="text" id="os-disp-serial" class="form-control form-control-sm" placeholder="Ex: 8F4K2-BR ou IMEI">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Linha 3: Defeito e Laudo -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Defeito Relatado pelo Cliente *</label>
+                            <textarea id="os-defeito" class="form-control" rows="3" placeholder="Ex: Não liga após queda, tela pisca..." required></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Laudo Técnico / Diagnóstico Inicial</label>
+                            <textarea id="os-laudo" class="form-control" rows="3" placeholder="Ex: Placa mãe em curto, capacitor estufado..."></textarea>
+                        </div>
+                    </div>
+
+                    <h6 class="mt-4 mb-2">Serviços e Peças Desta OS</h6>
+                    <div id="container-itens-os" class="mb-3"></div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mb-4" onclick="adicionarLinhaItem()">
+                        <i class="bi bi-plus-circle"></i> Adicionar Item do Catálogo
+                    </button>
+
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary px-4">Salvar Ordem de Serviço</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- ABA 3: CLIENTES -->
+        <section id="aba-clientes" style="display: none;">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card p-3">
+                        <h6>Cadastrar Novo Cliente</h6>
+                        <form id="form-cliente" onsubmit="salvarCliente(event)">
+                            <div class="mb-2">
+                                <label class="form-label small">Nome *</label>
+                                <input type="text" id="cli-nome" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">WhatsApp / Telefone</label>
+                                <input type="text" id="cli-telefone" class="form-control form-control-sm" placeholder="Ex: 47999999999">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Email</label>
+                                <input type="email" id="cli-email" class="form-control form-control-sm">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Endereço</label>
+                                <input type="text" id="cli-endereco" class="form-control form-control-sm">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm w-100">Salvar Cliente</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card p-3">
+                        <h6>Clientes Cadastrados</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Telefone</th>
+                                        <th>Endereço</th>
+                                        <th class="text-end">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-clientes"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 4: CATÁLOGO -->
+        <section id="aba-catalogo" style="display: none;">
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card p-3">
+                        <h6>Adicionar ao Catálogo</h6>
+                        <form id="form-catalogo" onsubmit="salvarCatalogo(event)">
+                            <div class="mb-2">
+                                <label class="form-label small">Descrição / Nome do Item *</label>
+                                <input type="text" id="cat-nome" class="form-control form-control-sm" placeholder="Ex: Troca de Tela, Formatação" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Tipo</label>
+                                <select id="cat-tipo" class="form-select form-select-sm" onchange="alternarCamposEstoqueCadastro(this.value)">
+                                    <option value="Serviço">Serviço</option>
+                                    <option value="Peça">Peça</option>
+                                </select>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Preço Padrão (R$) *</label>
+                                <input type="number" step="0.01" id="cat-preco" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Garantia (em dias)</label>
+                                <input type="number" id="cat-garantia" class="form-control form-control-sm" value="90">
+                            </div>
+
+                            <!-- Estoque inicial apenas para Peças -->
+                            <div id="container-estoque-cadastro" class="d-none border-top pt-2 mt-2">
+                                <div class="mb-2">
+                                    <label class="form-label small fw-bold text-primary">Estoque Inicial (unidades)</label>
+                                    <input type="number" id="cat-estoque-atual" class="form-control form-control-sm" value="0" min="0">
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary btn-sm w-100 mt-2">Salvar Item</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card p-3">
+                        <h6>Catálogo de Peças e Serviços</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Tipo</th>
+                                        <th>Preço</th>
+                                        <th>Garantia</th>
+                                        <th class="text-end">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-catalogo"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 5: ESTOQUE -->
+        <section id="aba-estoque" style="display: none;">
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card p-3 bg-secondary text-white">
+                        <small>Total de Peças Cadastradas</small>
+                        <h2 id="total-pecas-tipo" class="m-0">0</h2>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card p-3 bg-success text-white">
+                        <small>Peças em Estoque (Disponíveis)</small>
+                        <h2 id="total-pecas-disponiveis" class="m-0">0</h2>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card p-3 bg-danger text-white">
+                        <small>Peças Esgotadas (Zeradas)</small>
+                        <h2 id="total-pecas-zeradas" class="m-0">0</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <h5 class="m-0"><i class="bi bi-box-seam me-1"></i> Controle de Peças e Componentes</h5>
+                    <button class="btn btn-outline-primary btn-sm" onclick="carregarEstoque()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Atualizar Tabela
+                    </button>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Peça / Componente</th>
+                                <th>Preço Venda</th>
+                                <th>Estoque Atual</th>
+                                <th>Situação</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-estoque">
+                            <tr><td colspan="5" class="text-center text-muted">Carregando estoque...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- MODAL DE ENTRADA RÁPIDA DE ESTOQUE -->
+    <div class="modal fade" id="modalEntradaEstoque" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title" id="tituloModalEntradaEstoque">Repor Estoque</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form onsubmit="salvarEntradaEstoque(event)">
+                    <div class="modal-body">
+                        <input type="hidden" id="entrada-peca-id">
+                        <p class="small text-muted mb-2" id="entrada-peca-nome"></p>
+                        <label class="form-label small fw-bold">Quantas unidades chegaram?</label>
+                        <input type="number" id="entrada-peca-qtd" class="form-control form-control-sm" min="1" value="1" required>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-success btn-sm">Confirmar Entrada</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE EDIÇÃO DE ORDEM DE SERVIÇO (OS) -->
+    <div class="modal fade" id="modalEditarOS" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="tituloModalEditarOS">Editar Ordem de Serviço</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form onsubmit="salvarEdicaoOS(event)">
+                    <div class="modal-body">
+                        <input type="hidden" id="edit-os-id">
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Nome do Cliente *</label>
+                                <input type="text" id="edit-os-cliente-nome" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Telefone / WhatsApp</label>
+                                <input type="text" id="edit-os-cliente-telefone" class="form-control form-control-sm">
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Endereço do Cliente</label>
+                            <input type="text" id="edit-os-cliente-endereco" class="form-control form-control-sm">
+                        </div>
+
+                        <!-- Edição do Dispositivo -->
+                        <div class="card bg-light p-2 mb-2 border">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold">Tipo de Dispositivo</label>
+                                    <input type="text" id="edit-os-disp-tipo" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold">Marca / Modelo</label>
+                                    <input type="text" id="edit-os-disp-modelo" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold">Serial / IMEI</label>
+                                    <input type="text" id="edit-os-disp-serial" class="form-control form-control-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Previsão de Entrega</label>
+                            <input type="date" id="edit-os-previsao" class="form-control form-control-sm">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Defeito Relatado *</label>
+                            <textarea id="edit-os-defeito" class="form-control form-control-sm" rows="2" required></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Laudo Técnico / Diagnóstico</label>
+                            <textarea id="edit-os-laudo" class="form-control form-control-sm" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Salvar Alterações da OS</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE EDIÇÃO DE CLIENTE -->
+    <div class="modal fade" id="modalEditarCliente" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Editar Cliente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form onsubmit="salvarEdicaoCliente(event)">
+                    <div class="modal-body">
+                        <input type="hidden" id="edit-cli-id">
+                        <div class="mb-2">
+                            <label class="form-label small">Nome *</label>
+                            <input type="text" id="edit-cli-nome" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Telefone / WhatsApp</label>
+                            <input type="text" id="edit-cli-telefone" class="form-control form-control-sm">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Email</label>
+                            <input type="email" id="edit-cli-email" class="form-control form-control-sm">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Endereço</label>
+                            <input type="text" id="edit-cli-endereco" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE EDIÇÃO DE ITEM DO CATÁLOGO -->
+    <div class="modal fade" id="modalEditarCatalogo" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Editar Item do Catálogo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form onsubmit="salvarEdicaoCatalogo(event)">
+                    <div class="modal-body">
+                        <input type="hidden" id="edit-cat-id">
+                        <div class="mb-2">
+                            <label class="form-label small">Descrição / Nome *</label>
+                            <input type="text" id="edit-cat-nome" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Tipo</label>
+                            <select id="edit-cat-tipo" class="form-select form-select-sm" onchange="alternarCamposEstoqueEdicao(this.value)">
+                                <option value="Serviço">Serviço</option>
+                                <option value="Peça">Peça</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Preço Padrão (R$) *</label>
+                            <input type="number" step="0.01" id="edit-cat-preco" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Garantia (em dias)</label>
+                            <input type="number" id="edit-cat-garantia" class="form-control form-control-sm">
+                        </div>
+
+                        <!-- Edição de saldo de estoque para Peças -->
+                        <div id="container-estoque-edicao" class="d-none border-top pt-2 mt-2">
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold text-primary">Estoque Atual (unidades)</label>
+                                <input type="number" id="edit-cat-estoque-atual" class="form-control form-control-sm" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE FOTOS -->
+    <div class="modal fade" id="modalFotos" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalFotosTitulo">Fotos da OS</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-upload-foto" onsubmit="enviarFoto(event)" class="mb-4">
+                        <input type="hidden" id="foto-os-id">
+                        <label class="form-label small fw-bold">Adicionar Foto (Antes / Durante / Depois)</label>
+                        <div class="input-group">
+                            <input type="file" id="foto-input" class="form-control" accept="image/*" required>
+                            <button class="btn btn-primary" type="submit">
+                                <i class="bi bi-upload"></i> Enviar Foto
+                            </button>
+                        </div>
+                    </form>
+
+                    <h6 class="border-bottom pb-2">Fotos Anexadas</h6>
+                    <div id="galeria-fotos" class="row g-3 mt-1">
+                        <div class="col-12 text-center text-muted">A carregar fotos...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let catalogoGlobal = [];
+        let clientesGlobal = [];
+        let ordensGlobais = [];
+        let visaoPainelAtual = 'abertas';
+        let modalFotosInstancia = null;
+        let modalEditarClienteInstancia = null;
+        let modalEditarCatalogoInstancia = null;
+        let modalEditarOSInstancia = null;
+        let modalEntradaEstoqueInstancia = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            modalFotosInstancia = new bootstrap.Modal(document.getElementById('modalFotos'));
+            modalEditarClienteInstancia = new bootstrap.Modal(document.getElementById('modalEditarCliente'));
+            modalEditarCatalogoInstancia = new bootstrap.Modal(document.getElementById('modalEditarCatalogo'));
+            modalEditarOSInstancia = new bootstrap.Modal(document.getElementById('modalEditarOS'));
+            modalEntradaEstoqueInstancia = new bootstrap.Modal(document.getElementById('modalEntradaEstoque'));
+        });
+
+        function formatarNumeroOS(os) {
+            const dataLimpa = (os.data_entrada || '').replace(/-/g, '');
+            const idFormatado = String(os.id).padStart(4, '0');
+            return dataLimpa ? `OS-${dataLimpa}-${idFormatado}` : `OS-${idFormatado}`;
+        }
+
+        function formatarDataBR(dataStr) {
+            if (!dataStr) return '-';
+            const partes = dataStr.split('T')[0].split('-');
+            if (partes.length === 3) {
+                return `${partes[2]}/${partes[1]}/${partes[0]}`;
+            }
+            return dataStr;
+        }
+
+        function tratarOutroTipoDispositivo(valor, inputId) {
+            const container = document.getElementById('container-' + inputId);
+            const input = document.getElementById(inputId);
+            if (valor === 'Outros') {
+                container.classList.remove('d-none');
+                input.required = true;
+                input.focus();
+            } else {
+                container.classList.add('d-none');
+                input.required = false;
+                input.value = '';
+            }
+        }
+
+        function alternarCamposEstoqueCadastro(tipo) {
+            const container = document.getElementById('container-estoque-cadastro');
+            if (tipo === 'Peça') container.classList.remove('d-none');
+            else container.classList.add('d-none');
+        }
+
+        function alternarCamposEstoqueEdicao(tipo) {
+            const container = document.getElementById('container-estoque-edicao');
+            if (tipo === 'Peça') container.classList.remove('d-none');
+            else container.classList.add('d-none');
+        }
+
+        function mostrarAba(aba) {
+            ['dashboard', 'nova-os', 'clientes', 'catalogo', 'estoque'].forEach(a => {
+                document.getElementById('aba-' + a).style.display = (a === aba) ? 'block' : 'none';
+            });
+            document.querySelectorAll('#nav-tabs .nav-link').forEach(btn => btn.classList.remove('active'));
+            if (event && event.currentTarget) event.currentTarget.classList.add('active');
+
+            if (aba === 'dashboard') carregarOS();
+            if (aba === 'nova-os') prepararNovaOS();
+            if (aba === 'clientes') carregarClientes();
+            if (aba === 'catalogo') carregarCatalogo();
+            if (aba === 'estoque') carregarEstoque();
+        }
+
+        // --- CATÁLOGO ---
+        async function carregarCatalogo() {
+            const res = await fetch('/api/catalogo');
+            catalogoGlobal = await res.json();
+            const tbody = document.getElementById('tabela-catalogo');
+            tbody.innerHTML = catalogoGlobal.map(item => `
+                <tr>
+                    <td><strong>${item.nome}</strong></td>
+                    <td><span class="badge ${item.tipo === 'Serviço' ? 'bg-info' : 'bg-secondary'}">${item.tipo}</span></td>
+                    <td>R$ ${Number(item.preco).toFixed(2)}</td>
+                    <td>${item.dias_garantia} dias</td>
+                    <td class="text-end">
+                        <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" title="Editar" onclick='abrirModalEditarCatalogo(${JSON.stringify(item)})'>
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm py-0 px-2" title="Excluir" onclick="deletarCatalogo(${item.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function salvarCatalogo(e) {
+            e.preventDefault();
+            const tipo = document.getElementById('cat-tipo').value;
+            const dados = {
+                nome: document.getElementById('cat-nome').value,
+                tipo: tipo,
+                preco: parseFloat(document.getElementById('cat-preco').value),
+                dias_garantia: parseInt(document.getElementById('cat-garantia').value),
+                estoque_atual: tipo === 'Peça' ? parseInt(document.getElementById('cat-estoque-atual').value || '0') : 0
+            };
+
+            await fetch('/api/catalogo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            });
+
+            document.getElementById('form-catalogo').reset();
+            alternarCamposEstoqueCadastro('Serviço');
+            carregarCatalogo();
+        }
+
+        function abrirModalEditarCatalogo(item) {
+            document.getElementById('edit-cat-id').value = item.id;
+            document.getElementById('edit-cat-nome').value = item.nome;
+            document.getElementById('edit-cat-tipo').value = item.tipo;
+            document.getElementById('edit-cat-preco').value = item.preco;
+            document.getElementById('edit-cat-garantia').value = item.dias_garantia;
+            document.getElementById('edit-cat-estoque-atual').value = item.estoque_atual || 0;
+
+            alternarCamposEstoqueEdicao(item.tipo);
+            modalEditarCatalogoInstancia.show();
+        }
+
+        async function salvarEdicaoCatalogo(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-cat-id').value;
+            const tipo = document.getElementById('edit-cat-tipo').value;
+            const dados = {
+                nome: document.getElementById('edit-cat-nome').value,
+                tipo: tipo,
+                preco: parseFloat(document.getElementById('edit-cat-preco').value),
+                dias_garantia: parseInt(document.getElementById('edit-cat-garantia').value),
+                estoque_atual: tipo === 'Peça' ? parseInt(document.getElementById('edit-cat-estoque-atual').value || '0') : 0
+            };
+
+            await fetch(`/api/catalogo/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            });
+
+            modalEditarCatalogoInstancia.hide();
+            carregarCatalogo();
+        }
+
+        async function deletarCatalogo(id) {
+            if (confirm('Deseja realmente remover este item do catálogo?')) {
+                await fetch('/api/catalogo/' + id, { method: 'DELETE' });
+                carregarCatalogo();
+            }
+        }
+
+        // --- ABA DE ESTOQUE ---
+        async function carregarEstoque() {
+            const res = await fetch('/api/estoque');
+            const pecas = await res.json();
+
+            let disponiveis = 0;
+            let zerados = 0;
+
+            pecas.forEach(p => {
+                if (p.estoque_atual <= 0) zerados++;
+                else disponiveis++;
+            });
+
+            document.getElementById('total-pecas-tipo').innerText = pecas.length;
+            document.getElementById('total-pecas-disponiveis').innerText = disponiveis;
+            document.getElementById('total-pecas-zeradas').innerText = zerados;
+
+            const tbody = document.getElementById('tabela-estoque');
+            if (pecas.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Nenhuma peça cadastrada ainda. Cadastre um item como tipo "Peça" na aba Catálogo!</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = pecas.map(p => {
+                const badgeSituacao = p.estoque_atual <= 0
+                    ? '<span class="badge bg-danger">Esgotado</span>'
+                    : '<span class="badge bg-success">Em Estoque</span>';
+
+                return `
+                    <tr>
+                        <td><strong>${p.nome}</strong></td>
+                        <td>R$ ${Number(p.preco).toFixed(2)}</td>
+                        <td><strong class="fs-6 ${p.estoque_atual <= 0 ? 'text-danger' : 'text-success'}">${p.estoque_atual} un</strong></td>
+                        <td>${badgeSituacao}</td>
+                        <td class="text-end">
+                            <button class="btn btn-outline-success btn-sm py-0 px-2" title="Dar entrada em mais unidades" onclick="abrirModalEntradaEstoque(${p.id}, '${p.nome.replace(/'/g, "\\'")}', ${p.estoque_atual})">
+                                <i class="bi bi-plus-lg me-1"></i> Entrada
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function abrirModalEntradaEstoque(id, nome, estoqueAtual) {
+            document.getElementById('entrada-peca-id').value = id;
+            document.getElementById('entrada-peca-nome').innerText = `Item: ${nome} (Saldo Atual: ${estoqueAtual} un)`;
+            document.getElementById('entrada-peca-qtd').value = 1;
+            modalEntradaEstoqueInstancia.show();
+        }
+
+        async function salvarEntradaEstoque(e) {
+            e.preventDefault();
+            const id = document.getElementById('entrada-peca-id').value;
+            const quantidade = parseInt(document.getElementById('entrada-peca-qtd').value);
+
+            await fetch(`/api/estoque/${id}/entrada`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quantidade })
+            });
+
+            modalEntradaEstoqueInstancia.hide();
+            carregarEstoque();
+        }
+
+        // --- CLIENTES ---
+        async function carregarClientes() {
+            const res = await fetch('/api/clientes');
+            clientesGlobal = await res.json();
+            const tbody = document.getElementById('tabela-clientes');
+            tbody.innerHTML = clientesGlobal.map(c => `
+                <tr>
+                    <td><strong>${c.nome}</strong></td>
+                    <td>${c.telefone || '-'}</td>
+                    <td>${c.endereco || '-'}</td>
+                    <td class="text-end">
+                        <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" title="Editar" onclick='abrirModalEditarCliente(${JSON.stringify(c)})'>
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm py-0 px-2" title="Excluir" onclick="deletarCliente(${c.id}, '${c.nome.replace(/'/g, "\\'")}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function salvarCliente(e) {
+            e.preventDefault();
+            const dados = {
+                nome: document.getElementById('cli-nome').value,
+                telefone: document.getElementById('cli-telefone').value,
+                email: document.getElementById('cli-email').value,
+                endereco: document.getElementById('cli-endereco').value
+            };
+            await fetch('/api/clientes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            });
+            document.getElementById('form-cliente').reset();
+            carregarClientes();
+        }
+
+        function abrirModalEditarCliente(c) {
+            document.getElementById('edit-cli-id').value = c.id;
+            document.getElementById('edit-cli-nome').value = c.nome;
+            document.getElementById('edit-cli-telefone').value = c.telefone || '';
+            document.getElementById('edit-cli-email').value = c.email || '';
+            document.getElementById('edit-cli-endereco').value = c.endereco || '';
+            modalEditarClienteInstancia.show();
+        }
+
+        async function salvarEdicaoCliente(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-cli-id').value;
+            const dados = {
+                nome: document.getElementById('edit-cli-nome').value,
+                telefone: document.getElementById('edit-cli-telefone').value,
+                email: document.getElementById('edit-cli-email').value,
+                endereco: document.getElementById('edit-cli-endereco').value
+            };
+
+            await fetch(`/api/clientes/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            });
+
+            modalEditarClienteInstancia.hide();
+            carregarClientes();
+        }
+
+        async function deletarCliente(id, nome) {
+            if (confirm(`Remover "${nome}" da lista de clientes? As Ordens de Serviço desse cliente permanecerão guardadas com o nome dele no sistema!`)) {
+                await fetch(`/api/clientes/${id}`, { method: 'DELETE' });
+                carregarClientes();
+            }
+        }
+
+        // --- NOVA OS COM INDICADOR DE ESTOQUE ---
+        async function prepararNovaOS() {
+            document.getElementById('os-data-entrada').valueAsDate = new Date();
+            document.getElementById('alerta-garantia').classList.add('d-none');
+            document.getElementById('container-os-disp-outro').classList.add('d-none');
+            document.getElementById('os-disp-outro').value = '';
+            document.getElementById('os-disp-tipo').value = 'Desktop';
+
+            const resCli = await fetch('/api/clientes');
+            clientesGlobal = await resCli.json();
+            const selectCli = document.getElementById('os-cliente');
+            selectCli.innerHTML = '<option value="">Selecione um cliente...</option>' + 
+                clientesGlobal.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+
+            const resCat = await fetch('/api/catalogo');
+            catalogoGlobal = await resCat.json();
+            document.getElementById('container-itens-os').innerHTML = '';
+        }
+
+        async function verificarGarantiaCliente(clienteId) {
+            const alerta = document.getElementById('alerta-garantia');
+            const lista = document.getElementById('lista-garantias');
+
+            if (!clienteId) {
+                alerta.classList.add('d-none');
+                return;
+            }
+
+            const res = await fetch(`/api/clientes/${clienteId}/garantias`);
+            const garantias = await res.json();
+
+            if (garantias && garantias.length > 0) {
+                lista.innerHTML = garantias.map(g => {
+                    const numeroOSRef = formatarNumeroOS({ id: g.os_id, data_entrada: g.data_referencia });
+                    return `
+                        <li>
+                            <strong>${g.item_nome}</strong> (referente à ${numeroOSRef}) — 
+                            Garantia de ${g.dias_garantia} dias: 
+                            <span class="badge bg-success">${g.dias_restantes} dia(s) restantes</span>
+                        </li>
+                    `;
+                }).join('');
+                alerta.classList.remove('d-none');
+            } else {
+                alerta.classList.add('d-none');
+            }
+        }
+
+        function adicionarLinhaItem() {
+            const div = document.createElement('div');
+            div.className = 'row g-2 mb-2 align-items-center item-linha';
+            div.innerHTML = `
+                <div class="col-md-6">
+                    <select class="form-select form-select-sm item-select" onchange="atualizarPrecoLinha(this)">
+                        <option value="">Selecione um serviço/peça...</option>
+                        ${catalogoGlobal.map(item => {
+                            const infoEstoque = item.tipo === 'Peça' ? ` [Estoque: ${item.estoque_atual}]` : '';
+                            return `
+                                <option value="${item.id}" 
+                                        data-nome="${item.nome}" 
+                                        data-tipo="${item.tipo}" 
+                                        data-garantia="${item.dias_garantia}" 
+                                        data-preco="${item.preco}">
+                                    ${item.nome} - R$ ${Number(item.preco).toFixed(2)}${infoEstoque}
+                                </option>
+                            `;
+                        }).join('')}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <input type="number" class="form-control form-control-sm item-qtd" value="1" min="1" placeholder="Qtd">
+                </div>
+                <div class="col-md-3">
+                    <input type="number" step="0.01" class="form-control form-control-sm item-preco" placeholder="Preço Unit.">
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="this.parentElement.parentElement.remove()">&times;</button>
+                </div>
+            `;
+            document.getElementById('container-itens-os').appendChild(div);
+        }
+
+        function atualizarPrecoLinha(select) {
+            const preco = select.selectedOptions[0]?.getAttribute('data-preco');
+            const linha = select.closest('.item-linha');
+            if (preco) linha.querySelector('.item-preco').value = preco;
+        }
+
+        async function salvarOS(e) {
+            e.preventDefault();
+            const clienteId = document.getElementById('os-cliente').value;
+            const clienteObj = clientesGlobal.find(c => c.id == clienteId);
+
+            let dispTipo = document.getElementById('os-disp-tipo').value;
+            if (dispTipo === 'Outros') {
+                dispTipo = document.getElementById('os-disp-outro').value.trim() || 'Outros';
+            }
+
+            const itens = [];
+            document.querySelectorAll('.item-linha').forEach(linha => {
+                const select = linha.querySelector('.item-select');
+                const opt = select.selectedOptions[0];
+                const quantidade = parseInt(linha.querySelector('.item-qtd').value || '1');
+                const valor_unitario = parseFloat(linha.querySelector('.item-preco').value || '0');
+
+                if (select.value) {
+                    itens.push({
+                        catalogo_id: select.value,
+                        item_nome: opt.getAttribute('data-nome'),
+                        item_tipo: opt.getAttribute('data-tipo'),
+                        dias_garantia: parseInt(opt.getAttribute('data-garantia') || '0'),
+                        quantidade,
+                        valor_unitario
+                    });
+                }
+            });
+
+            const dados = {
+                cliente_id: clienteId,
+                cliente_nome: clienteObj ? clienteObj.nome : '',
+                cliente_telefone: clienteObj ? clienteObj.telefone : '',
+                cliente_endereco: clienteObj ? clienteObj.endereco : '',
+                dispositivo_tipo: dispTipo,
+                dispositivo_modelo: document.getElementById('os-disp-modelo').value.trim(),
+                dispositivo_serial: document.getElementById('os-disp-serial').value.trim(),
+                data_entrada: document.getElementById('os-data-entrada').value,
+                previsao_entrega: document.getElementById('os-previsao').value,
+                defeito_relatado: document.getElementById('os-defeito').value,
+                laudo_tecnico: document.getElementById('os-laudo').value,
+                itens
+            };
+
+            await fetch('/api/os', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            });
+
+            alert('Ordem de Serviço criada com sucesso!');
+            document.getElementById('form-nova-os').reset();
+            mostrarAba('dashboard');
+        }
+
+        // --- DASHBOARD ---
+        async function carregarOS() {
+            const res = await fetch('/api/os');
+            ordensGlobais = await res.json();
+
+            const abertas = ordensGlobais.filter(o => o.status !== 'Concluída');
+            const concluidas = ordensGlobais.filter(o => o.status === 'Concluída');
+
+            document.getElementById('total-os').innerText = ordensGlobais.length;
+            document.getElementById('total-abertas').innerText = abertas.length;
+            document.getElementById('total-concluidas').innerText = concluidas.length;
+
+            renderizarTabelaOS();
+        }
+
+        function mudarVisaoPainel(visao) {
+            visaoPainelAtual = visao;
+
+            ['todas', 'abertas', 'concluidas'].forEach(v => {
+                document.getElementById('card-visao-' + v).classList.remove('ativo');
+            });
+            document.getElementById('card-visao-' + visao).classList.add('ativo');
+
+            const titulos = {
+                abertas: 'Ordens em Aberto / Em Execução',
+                concluidas: 'Ordens de Serviço Concluídas',
+                todas: 'Todas as Ordens de Serviço (Geral)'
+            };
+            document.getElementById('titulo-tabela-os').innerText = titulos[visao];
+
+            renderizarTabelaOS();
+        }
+
+        function renderizarTabelaOS() {
+            let ordensFiltradas = [];
+
+            if (visaoPainelAtual === 'abertas') {
+                ordensFiltradas = ordensGlobais.filter(o => o.status !== 'Concluída');
+            } else if (visaoPainelAtual === 'concluidas') {
+                ordensFiltradas = ordensGlobais.filter(o => o.status === 'Concluída');
+            } else {
+                ordensFiltradas = ordensGlobais;
+            }
+
+            document.getElementById('badge-contador-visivel').innerText = `${ordensFiltradas.length} OS exibidas`;
+
+            const tbody = document.getElementById('tabela-os');
+            if (ordensFiltradas.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Nenhuma OS encontrada nesta categoria.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = ordensFiltradas.map(os => {
+                const numeroOS = formatarNumeroOS(os);
+                
+                let detalheDisp = os.dispositivo_tipo || '-';
+                if (os.dispositivo_modelo) detalheDisp += ` - ${os.dispositivo_modelo}`;
+                let serialDisp = os.dispositivo_serial ? `<br><small class="text-muted">SN: ${os.dispositivo_serial}</small>` : '';
+
+                return `
+                    <tr>
+                        <td><span class="codigo-os">${numeroOS}</span></td>
+                        <td>${os.cliente_nome}</td>
+                        <td>
+                            <strong>${detalheDisp}</strong>
+                            ${serialDisp}
+                        </td>
+                        <td>${os.defeito_relatado}</td>
+                        <td>${formatarDataBR(os.data_entrada)}</td>
+                        <td>${formatarDataBR(os.previsao_entrega)}</td>
+                        <td>
+                            <span class="badge ${os.status === 'Concluída' ? 'bg-success' : (os.status === 'Em Andamento' ? 'bg-info' : 'bg-warning text-dark')}">
+                                ${os.status}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <select class="form-select form-select-sm d-inline-block w-auto me-1" onchange="alterarStatus(${os.id}, this.value)">
+                                <option value="">Status</option>
+                                <option value="Orçamento">Orçamento</option>
+                                <option value="Em Andamento">Em Andamento</option>
+                                <option value="Concluída">Concluída</option>
+                            </select>
+                            <button class="btn btn-outline-primary btn-sm me-1" title="Editar OS" onclick="abrirModalEditarOS(${os.id})">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-whatsapp me-1" title="Enviar Mensagem via WhatsApp" onclick="enviarWhatsApp(${os.id})">
+                                <i class="bi bi-whatsapp"></i>
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm me-1" title="Ver / Anexar Fotos" onclick="abrirModalFotos(${os.id})">
+                                <i class="bi bi-camera"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm me-1" title="Imprimir / Salvar PDF" onclick="imprimirOS(${os.id})">
+                                <i class="bi bi-printer"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" title="Excluir OS" onclick="deletarOS(${os.id}, '${numeroOS}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // --- EXCLUSÃO DE ORDEM DE SERVIÇO ---
+        async function deletarOS(id, numeroOS) {
+            if (!confirm(`Tem certeza que deseja excluir a ${numeroOS}? Todas as peças usadas retornarão ao estoque e as fotos serão removidas.`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/os/${id}`, { method: 'DELETE' });
+                const dados = await res.json();
+
+                if (res.ok) {
+                    carregarOS();
+                } else {
+                    alert('Falha ao excluir: ' + (dados.erro || dados.mensagem || 'Código ' + res.status));
+                }
+            } catch (erro) {
+                alert('Erro de conexão com o servidor ao excluir a OS: ' + erro.message);
+            }
+        }
+
+        // --- EDIÇÃO DE ORDEM DE SERVIÇO ---
+        async function abrirModalEditarOS(id) {
+            const res = await fetch('/api/os/' + id);
+            const os = await res.json();
+            const numeroOS = formatarNumeroOS(os);
+
+            document.getElementById('tituloModalEditarOS').innerText = `Editar ${numeroOS}`;
+            document.getElementById('edit-os-id').value = os.id;
+            document.getElementById('edit-os-cliente-nome').value = os.cliente_nome;
+            document.getElementById('edit-os-cliente-telefone').value = os.cliente_telefone || '';
+            document.getElementById('edit-os-cliente-endereco').value = os.cliente_endereco || '';
+            document.getElementById('edit-os-disp-tipo').value = os.dispositivo_tipo || '';
+            document.getElementById('edit-os-disp-modelo').value = os.dispositivo_modelo || '';
+            document.getElementById('edit-os-disp-serial').value = os.dispositivo_serial || '';
+            document.getElementById('edit-os-previsao').value = os.previsao_entrega || '';
+            document.getElementById('edit-os-defeito').value = os.defeito_relatado || '';
+            document.getElementById('edit-os-laudo').value = os.laudo_tecnico || '';
+
+            modalEditarOSInstancia.show();
+        }
+
+        async function salvarEdicaoOS(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-os-id').value;
+            const dados = {
+                cliente_nome_salvo: document.getElementById('edit-os-cliente-nome').value,
+                cliente_telefone_salvo: document.getElementById('edit-os-cliente-telefone').value,
+                cliente_endereco_salvo: document.getElementById('edit-os-cliente-endereco').value,
+                dispositivo_tipo: document.getElementById('edit-os-disp-tipo').value,
+                dispositivo_modelo: document.getElementById('edit-os-disp-modelo').value,
+                dispositivo_serial: document.getElementById('edit-os-disp-serial').value,
+                previsao_entrega: document.getElementById('edit-os-previsao').value,
+                defeito_relatado: document.getElementById('edit-os-defeito').value,
+                laudo_tecnico: document.getElementById('edit-os-laudo').value
+            };
+
+            await fetch(`/api/os/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            });
+
+            modalEditarOSInstancia.hide();
+            carregarOS();
+        }
+
+        async function alterarStatus(id, novoStatus) {
+            if (!novoStatus) return;
+            const data_conclusao = novoStatus === 'Concluída' ? new Date().toISOString().split('T')[0] : null;
+            await fetch(`/api/os/${id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: novoStatus, data_conclusao })
+            });
+            carregarOS();
+        }
+
+        async function enviarWhatsApp(id) {
+            const res = await fetch('/api/os/' + id);
+            const os = await res.json();
+
+            if (!os.cliente_telefone) {
+                alert('Esta OS não possui telefone de cliente cadastrado.');
+                return;
+            }
+
+            let numero = os.cliente_telefone.replace(/\D/g, '');
+            if (numero.length < 10) {
+                alert('O número de telefone registrado não é válido para WhatsApp.');
+                return;
+            }
+
+            if (numero.length === 10 || numero.length === 11) {
+                numero = '55' + numero;
+            }
+
+            const numeroOS = formatarNumeroOS(os);
+            const dispInfo = os.dispositivo_modelo ? ` (${os.dispositivo_modelo})` : (os.dispositivo_tipo ? ` (${os.dispositivo_tipo})` : '');
+
+            let mensagem = `Olá, *${os.cliente_nome}*!\n\nPassando para informar sobre a sua *Ordem de Serviço ${numeroOS}*${dispInfo}.\n`;
+            mensagem += `Status atual: *${os.status.toUpperCase()}*.\n`;
+
+            if (os.status === 'Concluída') {
+                mensagem += `O seu equipamento está pronto e disponível para retirada!\n`;
+            } else if (os.status === 'Orçamento') {
+                mensagem += `O orçamento inicial foi gerado com sucesso.\n`;
+            }
+
+            mensagem += `\nQualquer dúvida estou à disposição!`;
+
+            const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
+            window.open(url, '_blank');
+        }
+
+        async function abrirModalFotos(osId) {
+            const os = ordensGlobais.find(o => o.id === osId);
+            const numeroOS = os ? formatarNumeroOS(os) : `#${osId}`;
+            document.getElementById('modalFotosTitulo').innerText = `Fotos da ${numeroOS}`;
+            document.getElementById('foto-os-id').value = osId;
+            document.getElementById('foto-input').value = '';
+            await carregarFotosGaleria(osId);
+            modalFotosInstancia.show();
+        }
+
+        async function carregarFotosGaleria(osId) {
+            const res = await fetch(`/api/os/${osId}/anexos`);
+            const fotos = await res.json();
+            const container = document.getElementById('galeria-fotos');
+
+            if (fotos.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center text-muted py-3">Nenhuma fotografia anexada a esta OS.</div>';
+                return;
+            }
+
+            container.innerHTML = fotos.map(f => `
+                <div class="col-md-4">
+                    <div class="card p-2 border">
+                        <a href="${f.caminho_arquivo}" target="_blank">
+                            <img src="${f.caminho_arquivo}" class="thumb-preview" alt="Foto OS">
+                        </a>
+                        <div class="text-end mt-2">
+                            <button class="btn btn-danger btn-sm py-0 px-2" onclick="removerFoto(${f.id}, ${osId})">
+                                <i class="bi bi-trash"></i> Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function enviarFoto(e) {
+            e.preventDefault();
+            const osId = document.getElementById('foto-os-id').value;
+            const fileInput = document.getElementById('foto-input');
+            if (!fileInput.files[0]) return;
+
+            const formData = new FormData();
+            formData.append('foto', fileInput.files[0]);
+
+            const res = await fetch(`/api/os/${osId}/anexos`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                fileInput.value = '';
+                carregarFotosGaleria(osId);
+            } else {
+                alert('Erro ao enviar a fotografia.');
+            }
+        }
+
+        async function removerFoto(fotoId, osId) {
+            if (confirm('Deseja realmente eliminar esta fotografia?')) {
+                await fetch(`/api/anexos/${fotoId}`, { method: 'DELETE' });
+                carregarFotosGaleria(osId);
+            }
+        }
+
+        // Impressão / PDF
+        async function imprimirOS(id) {
+            const res = await fetch('/api/os/' + id);
+            const os = await res.json();
+            const numeroOS = formatarNumeroOS(os);
+
+            let totalGeral = 0;
+            const linhasItens = (os.itens && os.itens.length > 0)
+                ? os.itens.map(item => {
+                    const subtotal = item.quantidade * item.valor_unitario;
+                    totalGeral += subtotal;
+                    return `
+                        <tr>
+                            <td>${item.item_nome} <small class="text-muted">(${item.item_tipo})</small></td>
+                            <td style="text-align: center;">${item.dias_garantia ? item.dias_garantia + ' dias' : '-'}</td>
+                            <td style="text-align: center;">${item.quantidade}</td>
+                            <td style="text-align: right;">R$ ${Number(item.valor_unitario).toFixed(2)}</td>
+                            <td style="text-align: right;">R$ ${Number(subtotal).toFixed(2)}</td>
+                        </tr>
+                    `;
+                }).join('')
+                : '<tr><td colspan="5" style="text-align: center;">Nenhum item adicionado a esta OS.</td></tr>';
+
+            const janela = window.open('', '_blank');
+            janela.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>${numeroOS}</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 24px; color: #222; font-size: 13px; }
+                        .cabecalho { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 16px; }
+                        .cabecalho h2 { margin: 0; font-size: 20px; letter-spacing: 0.5px; }
+                        .box-info { display: flex; gap: 16px; margin-bottom: 16px; border: 1px solid #ddd; padding: 12px; border-radius: 4px; }
+                        .box-col { flex: 1; }
+                        .box-col p { margin: 3px 0; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 16px; }
+                        th, td { border: 1px solid #ddd; padding: 6px 8px; }
+                        th { background: #f5f5f5; text-align: left; }
+                        .total { text-align: right; font-size: 16px; font-weight: bold; margin-bottom: 30px; }
+                        .assinaturas { display: flex; justify-content: space-between; margin-top: 50px; text-align: center; }
+                        .linha-assinatura { width: 40%; border-top: 1px solid #000; padding-top: 5px; }
+                        @media print {
+                            button { display: none; }
+                            body { padding: 0; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div style="text-align: right; margin-bottom: 10px;">
+                        <button onclick="window.print()" style="padding: 6px 14px; font-weight: bold; cursor: pointer;">Imprimir / Guardar em PDF</button>
+                    </div>
+
+                    <div class="cabecalho">
+                        <div>
+                            <h2>ORDEM DE SERVIÇO: ${numeroOS}</h2>
+                            <div>Status: <strong>${os.status.toUpperCase()}</strong></div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div>Data de Entrada: <strong>${formatarDataBR(os.data_entrada)}</strong></div>
+                            <div>Previsão: <strong>${formatarDataBR(os.previsao_entrega)}</strong></div>
+                            ${os.data_conclusao ? `<div>Conclusão: <strong>${formatarDataBR(os.data_conclusao)}</strong></div>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="box-info">
+                        <div class="box-col">
+                            <strong>DADOS DO CLIENTE</strong>
+                            <p><strong>Nome:</strong> ${os.cliente_nome}</p>
+                            <p><strong>Telefone:</strong> ${os.cliente_telefone || '-'}</p>
+                            <p><strong>Endereço:</strong> ${os.cliente_endereco || '-'}</p>
+                        </div>
+                        <div class="box-col">
+                            <strong>DADOS DO APARELHO</strong>
+                            <p><strong>Tipo:</strong> ${os.dispositivo_tipo || '-'}</p>
+                            <p><strong>Modelo:</strong> ${os.dispositivo_modelo || '-'}</p>
+                            <p><strong>Nº de Série/IMEI:</strong> ${os.dispositivo_serial || '-'}</p>
+                        </div>
+                        <div class="box-col">
+                            <strong>SERVIÇO</strong>
+                            <p><strong>Defeito:</strong> ${os.defeito_relatado}</p>
+                            <p><strong>Laudo:</strong> ${os.laudo_tecnico || 'Nenhum laudo registrado.'}</p>
+                        </div>
+                    </div>
+
+                    <strong>ITENS E SERVIÇOS EXECUTADOS</strong>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Descrição</th>
+                                <th style="text-align: center;">Garantia</th>
+                                <th style="text-align: center;">Qtd</th>
+                                <th style="text-align: right;">Preço Unit.</th>
+                                <th style="text-align: right;">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${linhasItens}
+                        </tbody>
+                    </table>
+
+                    <div class="total">
+                        Total Geral: R$ ${totalGeral.toFixed(2)}
+                    </div>
+
+                    <div class="assinaturas">
+                        <div class="linha-assinatura">Assinatura do Técnico</div>
+                        <div class="linha-assinatura">Assinatura do Cliente</div>
+                    </div>
+                </body>
+                </html>
+            `);
+            janela.document.close();
+        }
+
+        // Inicializa o Painel
+        carregarOS();
+    </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Dependências do Node (nunca subir para o Git)
+node_modules/
+
+# Logs e arquivos temporários do sistema
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+banco.sqlite
+uploads/
